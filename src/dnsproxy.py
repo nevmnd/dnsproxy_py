@@ -11,27 +11,28 @@ from dnslib.proxy import ProxyResolver
 from dnslib.server import DNSServer, DNSRecord
 
 class Resolver(ProxyResolver):
-    def __init__(self, address, blacklist):
+    def __init__(self, address, port, blacklist, response):
         self.blacklist = blacklist.split(", ")
-        self.response = config['Proxy']['response']
-        super().__init__(address, 53, 5)
+        self.response = response
+        self.address = address
+        self.port = port
+        super().__init__(address, int(port), 5)
 
     def resolve(self, request, handler):
         qname = request.q.qname
-        
         if (self.blacklisted(qname, self.blacklist)):
+            proxy_r = request.send(self.address, self.port, timeout=5)
+            reply = DNSRecord.parse(proxy_r)
+            ttl = reply.a.ttl
             reply = request.reply()
-            reply.add_answer(RR(qname,QTYPE.A,ttl=300,rdata=A(self.response)))
-            print(reply)
+            if (self.response):
+                reply.add_answer(RR(qname,QTYPE.A,ttl=ttl,rdata=A(self.response)))
             return reply
         else:
             return super().resolve(request, handler)
 
     def blacklisted(self, domain, blacklist):
-        if domain in blacklist:
-            return self.response
-        else:
-            return ""
+        return True if domain in blacklist else False
 
 def handle_sig(signum, frame):
     exit(0)
@@ -44,8 +45,13 @@ if __name__ == '__main__':
     
     port = int(config['Proxy']['port'])
     dns_server = config['DNS']['ip']
+    dns_port = config['DNS']['port']
     blacklist = config['Proxy']['blacklist']
-    resolver = Resolver(dns_server, blacklist)
+    try:
+        response = config['Proxy']['response']
+    except:
+        response = ""
+    resolver = Resolver(dns_server, dns_port, blacklist, response)
     proxy_server = DNSServer(resolver, port=port)
 
 
