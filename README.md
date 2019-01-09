@@ -1,4 +1,4 @@
-dnsproxy.py
+DNS Proxy on Python3
 ========
 
 DNS proxy server with blacklist test task, written on Python 3.2
